@@ -10,30 +10,36 @@ import cv2
 import numpy as np
 
 # construct the argument parser and parse the arguments
+# 构造参数解析器并解析参数
 ap = argparse.ArgumentParser()
 ap.add_argument("-v", "--video", help="path to the video file")
 ap.add_argument("-a", "--min-area", type=int, default=1000, help="minimum area size")
 args = vars(ap.parse_args())
 
 # if the video argument is None, then we are reading from webcam
+# 如果video参数为None，那么我们从webcam读取，网络摄像头
 if args.get("video", None) is None:
     camera = cv2.VideoCapture(0)
     time.sleep(0.25)
 
 # otherwise, we are reading from a video file
+# 否则，我们将从一个视频文件中读取
 else:
     camera = cv2.VideoCapture(args["video"])
 
 # initialize the first frame in the video stream
+# 初始化视频流中的第一帧
 firstFrame = None
 
 # Define the codec
+# 定义编解码器
 fourcc = cv2.VideoWriter_fourcc('X', 'V', 'I', 'D')
 framecount = 0
 frame = np.zeros((640,480))
 out = cv2.VideoWriter('./videos/'+'calm_down_video_'+datetime.datetime.now().strftime("%A_%d_%B_%Y_%I_%M_%S%p")+'.avi',fourcc, 5.0, np.shape(frame))
 
 # to begin with, the light is not stable, calm it down
+# 首先，光线并不稳定，让它平静下来
 tc = 40
 while tc:
     ret, frame = camera.read()
@@ -46,26 +52,31 @@ tc = totalc
 out.release()
 
 # loop over the frames of the video
+# 循环视频的帧
 while True:
 
     # grab the current frame and initialize the occupied/unoccupied
+    # 获取当前帧并初始化被占用/未被占用的帧
     # text
     (grabbed, frame) = camera.read()
     text = "Unoccupied"
 
     # if the frame could not be grabbed, then we have reached the end
     # of the video
+    # 如果抓不到画面，那么我们就到了视频的结尾
     if not grabbed:
         time.sleep(0.25)
         continue
 
     # resize the frame, convert it to grayscale, and blur it
+    # 调整框架大小，将其转换为灰度，并模糊它
     # frame = imutils.resize(frame, width=500)
 
     gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
     gray = cv2.GaussianBlur(gray, (21, 21), 0)
 
     # update firstFrame for every while
+    # 每隔一段时间更新firstFrame
     if tc%totalc == 0:
         firstFrame = gray
         tc = (tc+1) % totalc
@@ -77,42 +88,52 @@ while True:
 
     # compute the absolute difference between the current frame and
     # first frame
+    # 计算当前帧和第一帧之间的绝对差
     frameDelta = cv2.absdiff(firstFrame, gray)
     thresh = cv2.threshold(frameDelta, 25, 255, cv2.THRESH_BINARY)[1]
 
     # dilate the thresholded image to fill in holes, then find contours
     # on thresholded image
+    # 对阈值图像进行膨胀填充孔洞，然后在阈值图像上寻找轮廓线
     thresh = cv2.dilate(thresh, None, iterations=2)
     _, cnts,_= cv2.findContours(thresh.copy(), cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
 
     # loop over the contours
+    # 在轮廓上循环
     for c in cnts:
 
     # if the contour is too small, ignore it
+    # 如果轮廓太小，忽略它
         if cv2.contourArea(c) < args["min_area"]:
             continue
         # compute the bounding box for the contour, draw it on the frame,
         # and update the text
+        # 计算轮廓的包围框，将其绘制在框架上，并更新文本
         (x, y, w, h) = cv2.boundingRect(c)
         cv2.rectangle(frame, (x, y), (x + w, y + h), (0, 255, 0), 2)
         text = "Occupied"
 
     # draw the text and timestamp on the frame
+    # 在框架上绘制文本和时间戳
     cv2.putText(frame, "Monitoring Area Status: {}".format(text), (10, 20), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 0, 255), 2)
     cv2.putText(frame, datetime.datetime.now().strftime("%A %d %B %Y %I:%M:%S%p"), (10, frame.shape[0] - 10), cv2.FONT_HERSHEY_SIMPLEX, 0.35, (0, 0, 255), 1)
 
     # show the frame and record if the user presses a key
+    # 如果用户按下一个键，则显示帧并记录
     cv2.imshow("Security Feed", frame)
     cv2.imshow("Thresh", thresh)
     cv2.imshow("Frame Delta", frameDelta)
 
     # save the detection result
+    # 保存检测结果
     if text == "Occupied":
         if framecount == 0:
             # create VideoWriter object
+            # 创建VideoWriter对象
             out = cv2.VideoWriter('./videos/'+datetime.datetime.now().strftime("%A_%d_%B_%Y_%I_%M_%S%p")+'.avi',fourcc, 10.0, np.shape(gray)[::-1])
             cv2.imwrite('./images/'+datetime.datetime.now().strftime("%A_%d_%B_%Y_%I_%M_%S%p")+'.jpg',frame)
             # write the flipped frame
+            # 写入翻转帧
             out.write(frame)
             framecount += 1
         else:
@@ -134,9 +155,11 @@ while True:
     key = cv2.waitKey(1) & 0xFF
 
     # if the `ESC` key is pressed, break from the lop
+    # 如果按下“ESC”键，则从lop断开
     if key == 27:
         break
 
 # cleanup the camera and close any open windows
+# 清理摄像机，关闭所有打开的窗口
 camera.release()
 cv2.destroyAllWindows()
